@@ -38,6 +38,105 @@
             margin-bottom: 5px;
         }
 
+        .custom-lookup {
+            background-color: #252526;
+            border-radius: 4px;
+            border: 1px solid #3c3c3c;
+            margin-bottom: 20px;
+            overflow: hidden;
+        }
+
+        .custom-lookup-header {
+            background-color: #2d2d30;
+            padding: 12px 15px;
+            border-bottom: 1px solid #3c3c3c;
+            color: #cccccc;
+            font-weight: bold;
+            font-size: 13px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .custom-lookup-header::before {
+            content: '›';
+            color: #007acc;
+            font-size: 16px;
+        }
+
+        .custom-lookup-body {
+            padding: 14px 15px;
+            display: flex;
+            gap: 10px;
+            align-items: center;
+            flex-wrap: wrap;
+        }
+
+        .lookup-input-wrapper {
+            flex: 1;
+            min-width: 200px;
+            position: relative;
+        }
+
+        .lookup-input {
+            width: 100%;
+            background-color: #1e1e1e;
+            border: 1px solid #3c3c3c;
+            color: #4fc1ff;
+            font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
+            font-size: 13px;
+            padding: 8px 12px;
+            border-radius: 3px;
+            outline: none;
+            transition: border-color 0.2s;
+        }
+
+        .lookup-input:focus {
+            border-color: #007acc;
+        }
+
+        .lookup-input::placeholder {
+            color: #555;
+        }
+
+        .lookup-input.invalid {
+            border-color: #f48771;
+        }
+
+        .lookup-btn {
+            background-color: #0e639c;
+            color: #ffffff;
+            border: none;
+            font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
+            font-size: 13px;
+            padding: 8px 18px;
+            border-radius: 3px;
+            cursor: pointer;
+            transition: background-color 0.2s;
+            white-space: nowrap;
+            flex-shrink: 0;
+        }
+
+        .lookup-btn:hover {
+            background-color: #1177bb;
+        }
+
+        .lookup-btn:active {
+            background-color: #0a4f7d;
+        }
+
+        .lookup-btn:disabled {
+            background-color: #37373d;
+            color: #858585;
+            cursor: not-allowed;
+        }
+
+        .lookup-hint {
+            font-size: 11px;
+            color: #555;
+            padding: 0 15px 10px;
+        }
+
         .profiles-list {
             background-color: #252526;
             border-radius: 4px;
@@ -313,6 +412,16 @@
             .close {
                 font-size: 24px;
             }
+
+            .custom-lookup-body {
+                flex-direction: column;
+                align-items: stretch;
+            }
+
+            .lookup-btn {
+                width: 100%;
+                text-align: center;
+            }
         }
 
         /* Small mobile devices */
@@ -342,10 +451,30 @@
             <h1>Minibits Explorer</h1>
         </header>
 
-        <div class="profiles-list">
-            <div class="list-header">
-                NIP-05 Addresses
+        <div class="custom-lookup">
+            <div class="custom-lookup-header">
+                NIP-05 Address
             </div>
+            <div class="custom-lookup-body">
+                <div class="lookup-input-wrapper">
+                    <input
+                        type="text"
+                        id="customAddressInput"
+                        class="lookup-input"
+                        placeholder="username@minibits.cash"
+                        autocomplete="off"
+                        autocapitalize="none"
+                        spellcheck="false"
+                    />
+                </div>
+                <button id="lookupBtn" class="lookup-btn" onclick="handleCustomLookup()">
+                    Lookup Profile
+                </button>
+            </div>
+            <div class="lookup-hint">Enter any NIP-05 address to fetch its profile metadata</div>
+        </div>
+
+        <div class="profiles-list">
             <div id="profilesList">
                 <div class="empty-state" style="padding: 40px 20px;">
                 </div>
@@ -382,10 +511,20 @@
         const modalTitle = document.getElementById('modalTitle');
         const modalBody = document.getElementById('modalBody');
         const closeBtn = document.querySelector('.close');
+        const customAddressInput = document.getElementById('customAddressInput');
+        const lookupBtn = document.getElementById('lookupBtn');
 
         closeBtn.addEventListener('click', closeModal);
         window.addEventListener('click', (e) => {
             if (e.target === modal) closeModal();
+        });
+
+        customAddressInput.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter') handleCustomLookup();
+        });
+
+        customAddressInput.addEventListener('input', () => {
+            customAddressInput.classList.remove('invalid');
         });
 
         window.addEventListener('DOMContentLoaded', loadJSONFromGitHub);
@@ -472,6 +611,42 @@
                 case 'success': return 'Loaded';
                 case 'error': return 'Error';
                 default: return '';
+            }
+        }
+
+        async function handleCustomLookup() {
+            const rawValue = customAddressInput.value.trim();
+
+            if (!rawValue) {
+                customAddressInput.focus();
+                return;
+            }
+
+            if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(rawValue)) {
+                customAddressInput.classList.add('invalid');
+                customAddressInput.focus();
+                return;
+            }
+
+            const addr = rawValue.toLowerCase();
+
+            if (profilesData[addr]) {
+                fetchProfile(addr);
+                return;
+            }
+
+            lookupBtn.disabled = true;
+            lookupBtn.textContent = 'Loading...';
+
+            try {
+                const metadata = await getProfileMetadata(addr);
+                profileMetadata[addr] = metadata;
+                showModal(addr, metadata);
+            } catch (error) {
+                showModal(addr, { error: error.message });
+            } finally {
+                lookupBtn.disabled = false;
+                lookupBtn.textContent = 'Lookup Profile';
             }
         }
 
